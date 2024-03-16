@@ -1,0 +1,15 @@
+---
+- hosts: myvmubuntu
+  become: yes
+  tasks:
+    - name: Instalar Podman
+      apt:
+        name: podman
+        state: present
+
+    - name: Descargar imagen de Nginx
+      shell: podman pull docker.io/library/nginx
+
+    - name: Ejecutar contenedor de Nginx
+      shell: podman run -d --name nginx_server -p 80:80 nginx
+

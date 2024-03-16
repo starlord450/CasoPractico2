@@ -12,17 +12,6 @@ resource "azurerm_container_registry" "micontainer" {
   admin_enabled       = true
 }
 
-/*
-# subir imagen al acr
-resource "null_resource" "upload_image_to_acr" {
-  depends_on = [azurerm_container_registry.micontainer]
-
-  provisioner "local-exec" {
-    command = "az acr build --registry ${azurerm_container_registry.micontainer.name} --image nombreimagen:tag ."
-  }
-}
-*/ 
-
 
 # despliegue de la VM Linux
 # creacion de red virtual
@@ -34,7 +23,7 @@ resource "azurerm_virtual_network" "my_terraform_network" {
 }
 
 # Crear la subred
-resource "azurerm_subnet" "my_terraform_subnet" { 
+resource "azurerm_subnet" "my_terraform_subnet" {
   name                 = "mySubnet"
   resource_group_name  = azurerm_resource_group.repositorio_rg.name
   virtual_network_name = azurerm_virtual_network.my_terraform_network.name
@@ -75,6 +64,18 @@ resource "azurerm_network_security_group" "my_terraform_nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+  #trafico entrante en el puerto 443
+  security_rule {
+    name                       = "HTTPS"
+    priority                   = 1003
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
@@ -136,7 +137,17 @@ resource "azurerm_linux_virtual_machine" "vmubuntu" {
 
 }
 
+
 # Despliegue cluster de AKS
+# Define el recurso para la dirección IP pública
+resource "azurerm_public_ip" "aks_public_ip" {
+  name                = "aks-public-ip"
+  location            = azurerm_resource_group.repositorio_rg.location
+  resource_group_name = azurerm_resource_group.repositorio_rg.name
+  allocation_method   = "Static"
+}
+
+# Define el recurso para el clúster de Kubernetes
 resource "azurerm_kubernetes_cluster" "cluster_aks" {
   name                = "aks-cluster"
   location            = azurerm_resource_group.repositorio_rg.location
@@ -149,6 +160,14 @@ resource "azurerm_kubernetes_cluster" "cluster_aks" {
     node_count = 1
     vm_size    = "Standard_DS2_v2"
   }
+  
+  network_profile {
+    network_plugin     = "azure"
+    load_balancer_sku  = "standard"
+    dns_service_ip     = "10.2.0.10"
+    docker_bridge_cidr = "172.17.0.1/16"
+    service_cidr       = "10.2.0.0/24"
+  }
 
   identity {
     type = "SystemAssigned"
@@ -157,5 +176,6 @@ resource "azurerm_kubernetes_cluster" "cluster_aks" {
   tags = {
     Environment = "despliegue-cluster-aks"
   }
-
 }
+
+

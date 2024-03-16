@@ -21,7 +21,7 @@ resource "null_resource" "upload_image_to_acr" {
     command = "az acr build --registry ${azurerm_container_registry.micontainer.name} --image nombreimagen:tag ."
   }
 }
-*/
+*/ 
 
 
 # despliegue de la VM Linux

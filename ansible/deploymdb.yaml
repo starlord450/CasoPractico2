@@ -1,0 +1,93 @@
+---
+- name: Despliegue de MongoDB en AKS
+  hosts: localhost
+  tasks:
+    - name: Crear Namespace para MongoDB
+      k8s:
+        api_version: v1
+        kind: Namespace
+        name: mongodb
+        state: present
+
+    - name: Desplegar PersistentVolume para MongoDB
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: mongodb-pv
+          spec:
+            capacity:
+              storage: 1Gi
+            accessModes:
+              - ReadWriteOnce
+            azureFile:
+              secretName: azure-secret
+              shareName: mongodb-pv
+              readOnly: false
+
+    - name: Desplegar PersistentVolumeClaim para MongoDB
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: mongodb-pvc
+            namespace: mongodb
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+
+    - name: Desplegar MongoDB Deployment
+      k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: mongodb
+            namespace: mongodb
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: mongodb
+            template:
+              metadata:
+                labels:
+                  app: mongodb
+              spec:
+                containers:
+                  - name: mongodb
+                    image: mongo
+                    ports:
+                      - containerPort: 27017
+                    volumeMounts:
+                      - mountPath: /data/db
+                        name: mongodb-data
+                volumes:
+                  - name: mongodb-data
+                    persistentVolumeClaim:
+                      claimName: mongodb-pvc
+
+    - name: Exponer servicio de MongoDB
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: mongodb
+            namespace: mongodb
+          spec:
+            ports:
+              - port: 27017
+                targetPort: 27017
+            selector:
+              app: mongodb
+            type: LoadBalancer
